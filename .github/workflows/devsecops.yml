@@ -23,8 +23,6 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
 
       # 3. Analyse statique du code JavaScript/NodeJS (SAST)
       - name: Analyse SAST du code source (Semgrep)
