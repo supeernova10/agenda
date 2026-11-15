@@ -38,11 +38,11 @@ jobs:
 
       # 5. Scan des vulnérabilités (CVE) dans les paquets npm et l'OS Docker
       - name: Scan de vulnérabilités Docker & Dépendances (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: 'mon-agenda:ci'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --vuln-type os,library \
+            --severity CRITICAL,HIGH \
+            mon-agenda:ci
