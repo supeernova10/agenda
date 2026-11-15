@@ -39,4 +39,4 @@ USER node
 EXPOSE 3000
 
 # Lancement de l'application (adapte selon ton point d'entrée : app.js ou server.js)
-CMD ["node", "server.js"]
+CMD ["node", "src/server.js"]

@@ -27,6 +27,9 @@
   <img src="https://img.shields.io/badge/Status-Production-success?style=flat-square" />
   <img src="https://img.shields.io/badge/Responsive-100%25-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" />
+  <a href="https://github.com/supeernova10/agenda/actions/workflows/devsecops.yml">
+    <img src="https://github.com/supeernova10/agenda/actions/workflows/devsecops.yml/badge.svg" alt="Pipeline DevSecOps" />
+  </a>
 </p>
 
 ---
@@ -98,18 +101,22 @@ Développée en **Node.js + Express + MongoDB**, elle s'appuie sur **[FullCalend
 ```
 agenda
 │
-├── docs/                → documentation projet (backlog, diagrammes, revues)
+├── .github/
+│   └── workflows/
+│       └── devsecops.yml  → pipeline CI/CD automatisé (TruffleHog, Semgrep, Trivy)
+├── docs/                  → documentation projet (backlog, diagrammes, revues)
 ├── src/
-│   ├── controllers/     → logique métier (rendez-vous, calendrier, user…)
-│   ├── middleware/      → authentification JWT
-│   ├── models/          → schémas Mongoose + connexion DB
+│   ├── controllers/       → logique métier (rendez-vous, calendrier, user…)
+│   ├── middleware/        → authentification JWT
+│   ├── models/            → schémas Mongoose + connexion DB
 │   ├── public/
-│   │   ├── css/         → styles globaux et pages (global, agenda, thème…)
-│   │   └── js/          → scripts front-end modulaires
-│   ├── routes/          → routes Express
-│   ├── views/           → pages HTML principales
-│   └── server.js        → serveur Express
+│   │   ├── css/           → styles globaux et pages (global, agenda, thème…)
+│   │   └── js/            → scripts front-end modulaires
+│   ├── routes/            → routes Express
+│   ├── views/             → pages HTML principales
+│   └── server.js          → serveur Express
 │
+├── Dockerfile             → image de production multi-stage durcie (non-root)
 └── package.json
 
 ```
@@ -200,13 +207,23 @@ Le dossier `docs/` contient :
 
 ---
 
-# 🔒 Sécurité
+# 🔒 Sécurité & DevSecOps
 
-- Hashage des mots de passe
-- JWT signé
-- Middleware d’accès
-- Permissions granulaire
-- Validation back-end et front-end
+### Sécurité Applicative
+- Hashage des mots de passe (`bcrypt`)
+- Authentification par jetons `JWT` signés et middleware d’accès granulaire
+- Validation des entrées back-end et front-end
+
+### Pipeline CI/CD DevSecOps (Shift-Left Security)
+À chaque `push` ou `pull_request` sur la branche `main`, un workflow **GitHub Actions** exécute automatiquement les contrôles suivants :
+
+1. **Secret Scanning (`TruffleHog`) :** Détection automatisée de clés API, mots de passe ou jetons exposés dans l'historique Git.
+2. **Analyse Statique de Code – SAST (`Semgrep`) :** Audit automatisé du code JavaScript/Node.js (règles OWASP Top 10) et vérification du durcissement du pipeline CI/CD (verrouillage des actions tierces par empreinte SHA-1).
+3. **Durcissement du Conteneur (`Docker Multi-Stage`) :**
+   - Image de production minimale basée sur `node:22-alpine` mise à jour (`apk upgrade`).
+   - Suppression des gestionnaires de paquets (`npm`, `yarn`, `corepack`) dans l'image finale pour réduire la surface d'attaque.
+   - Exécution du processus applicatif sous l'utilisateur non-privilégié `node` (non-root).
+4. **Scan de Vulnérabilités – SCA & OS (`Trivy`) :** Blocage automatique du build en cas de détection de vulnérabilités `HIGH` ou `CRITICAL` dans les dépendances système ou applicatives.
 
 ---
 
