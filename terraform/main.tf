@@ -22,6 +22,7 @@ resource "kind_cluster" "agenda_cluster" {
       extra_port_mappings {
         container_port = 30080
         host_port      = 3000
+        listen_address = "127.0.0.1"
       }
     }
   }
