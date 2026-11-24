@@ -1,0 +1,35 @@
+---
+- name: Durcissement de l'environnement hôte (Mon Agenda)
+  hosts: localhost
+  connection: local
+  become: true
+
+  tasks:
+    - name: Autoriser SSH (avec limitation de débit) pour ne pas se couper l'accès
+      community.general.ufw:
+        rule: limit
+        port: '22'
+        proto: tcp
+
+    - name: Autoriser le port NodePort de l'application (3000)
+      community.general.ufw:
+        rule: allow
+        port: '3000'
+        proto: tcp
+
+    - name: Activer UFW avec politique par défaut restrictive
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    - name: Vérifier la présence du fichier .env
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../.env"
+      register: env_file
+
+    - name: Restreindre les permissions du .env (propriétaire uniquement)
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../.env"
+        mode: '0600'
+      when: env_file.stat.exists
