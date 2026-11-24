@@ -44,3 +44,13 @@ jobs:
             --vuln-type os,library \
             --severity CRITICAL,HIGH \
             mon-agenda:ci
+      
+      # 6. Scan de sécurité IaC (Terraform & Kubernetes)
+      - name: Scan IaC (Trivy config)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" \
+            aquasec/trivy:latest config \
+            --exit-code 1 \
+            --severity CRITICAL,HIGH \
+            --skip-dirs "**/node_modules" \
+            /src
