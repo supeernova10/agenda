@@ -1,4 +1,11 @@
 node_modules
 npm-debug.log
 .git
+.github
 .env
+docs
+k8s
+terraform
+ansible
+*.md
+docker-compose.yml
