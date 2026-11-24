@@ -32,5 +32,6 @@ app.use("/", routes);
     );
   } catch (err) {
     console.error("Impossible de démarrer le serveur :", err);
+    process.exit(1);
   }
 })();
