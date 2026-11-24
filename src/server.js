@@ -16,6 +16,10 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Healthcheck (probes Kubernetes)
+app.get("/health", (req, res) => res.status(200).json({ status: "ok" }));
+
+
 // Utilisation du routeur
 app.use("/", routes);
 
@@ -28,5 +32,6 @@ app.use("/", routes);
     );
   } catch (err) {
     console.error("Impossible de démarrer le serveur :", err);
+    process.exit(1);
   }
 })();

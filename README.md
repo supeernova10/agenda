@@ -21,10 +21,13 @@
   <img src="https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white" />
   <img src="https://img.shields.io/badge/MongoDB-8+-47A248?style=for-the-badge&logo=mongodb&logoColor=white" />
   <img src="https://img.shields.io/badge/FullCalendar-6.1-0275d8?style=for-the-badge&logo=google-calendar&logoColor=white" />
+  <img src="https://img.shields.io/badge/Docker-multi--stage-2496ED?style=for-the-badge&logo=docker&logoColor=white" />
+  <img src="https://img.shields.io/badge/Kubernetes-kind-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" />
+  <img src="https://img.shields.io/badge/Terraform-IaC-7B42BC?style=for-the-badge&logo=terraform&logoColor=white" />
+  <img src="https://img.shields.io/badge/Ansible-automation-EE0000?style=for-the-badge&logo=ansible&logoColor=white" />
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Status-Production-success?style=flat-square" />
   <img src="https://img.shields.io/badge/Responsive-100%25-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" />
   <a href="https://github.com/supeernova10/agenda/actions/workflows/devsecops.yml">
@@ -103,8 +106,10 @@ agenda
 │
 ├── .github/
 │   └── workflows/
-│       └── devsecops.yml  → pipeline CI/CD automatisé (TruffleHog, Semgrep, Trivy)
+│       └── devsecops.yml  → pipeline CI (TruffleHog, Semgrep, Trivy image + IaC)
+├── ansible/               → deploy.yml (déploiement), hardening.yml (durcissement hôte)
 ├── docs/                  → documentation projet (backlog, diagrammes, revues)
+├── k8s/                   → manifests Kubernetes (app, MongoDB, services, NetworkPolicy)
 ├── src/
 │   ├── controllers/       → logique métier (rendez-vous, calendrier, user…)
 │   ├── middleware/        → authentification JWT
@@ -115,8 +120,9 @@ agenda
 │   ├── routes/            → routes Express
 │   ├── views/             → pages HTML principales
 │   └── server.js          → serveur Express
-│
+├── terraform/             → cluster Kubernetes local (kind)
 ├── Dockerfile             → image de production multi-stage durcie (non-root)
+├── ansible.cfg
 └── package.json
 
 ```
@@ -150,7 +156,7 @@ agenda
 ### 1. Cloner le dépôt
 
 ```bash
-git clone https://gitlab.univ-lorraine.fr/e80624u/agenda.git
+git clone https://github.com/supeernova10/agenda.git
 cd agenda
 ```
 
@@ -167,7 +173,7 @@ Créer `.env` :
 ```
 PORT=3000
 MONGO_URI=mongodb://localhost:27017/agenda
-JWT_SECRET=votre_secret
+SECRET_KEY=votre_secret
 ```
 
 ### 4. Lancer l’application
@@ -207,6 +213,61 @@ Le dossier `docs/` contient :
 
 ---
 
+# ☸️ Infrastructure as Code & Kubernetes
+
+L'application est déployée sur un cluster Kubernetes local (kind), entièrement automatisé.
+
+```mermaid
+flowchart TB
+  User["Navigateur - 127.0.0.1:3000"] --> SVC
+  subgraph Host["Machine hôte - durcie par Ansible (UFW)"]
+    subgraph Kind["Cluster kind - créé par Terraform"]
+      SVC["Service NodePort 30080"]
+      WEB["Deployment agenda-web"]
+      NP["NetworkPolicy"]
+      DB["StatefulSet mongo-0"]
+      PVC["PersistentVolumeClaim 1Gi"]
+    end
+  end
+  SVC --> WEB --> NP --> DB --> PVC
+```
+
+| Outil | Rôle dans le projet |
+|---|---|
+| **Terraform** | Crée le cluster kind ; le port 3000 n'est exposé que sur `127.0.0.1` |
+| **Ansible** | `deploy.yml` : crée le secret, applique les manifests, vérifie `/health` (idempotent) ; `hardening.yml` : pare-feu UFW |
+| **Kubernetes** | Exécute l'application et MongoDB (probes, limites de ressources, volume persistant) |
+
+## 🚀 Déployer sur Kubernetes
+
+Prérequis : Docker, kind, kubectl, Terraform, Ansible (`ansible-galaxy collection install kubernetes.core`).
+
+
+```bash
+
+# 0. Dépendances Ansible
+sudo apt install python3-kubernetes python3-yaml
+ansible-galaxy collection install kubernetes.core
+
+# 1. Créer le cluster
+cd terraform && terraform init && terraform apply -auto-approve && cd ..
+
+# 2. Construire l'image et la charger dans le cluster
+docker build -t agenda-app:1.1 .
+kind load docker-image agenda-app:1.1 --name agenda-devsecops
+
+# 3. Déployer (secret aléatoire, MongoDB, application)
+ansible-playbook ansible/deploy.yml
+
+# 4. (optionnel) Durcir la machine hôte
+ansible-playbook ansible/hardening.yml --ask-become-pass
+```
+
+Application : http://localhost:3000 — santé : `/health`.
+Pour tout supprimer : `cd terraform && terraform destroy`.
+
+---
+
 # 🔒 Sécurité & DevSecOps
 
 ### Sécurité Applicative
@@ -224,18 +285,34 @@ Le dossier `docs/` contient :
    - Suppression des gestionnaires de paquets (`npm`, `yarn`, `corepack`) dans l'image finale pour réduire la surface d'attaque.
    - Exécution du processus applicatif sous l'utilisateur non-privilégié `node` (non-root).
 4. **Scan de Vulnérabilités – SCA & OS (`Trivy`) :** Blocage automatique du build en cas de détection de vulnérabilités `HIGH` ou `CRITICAL` dans les dépendances système ou applicatives.
+5. **Scan de l'Infrastructure as Code (`Trivy config`) :** Analyse des manifests Kubernetes, du Terraform et du Dockerfile ; le build échoue en cas de mauvaise configuration `HIGH` ou `CRITICAL`.
+
 
 ---
-
+### Sécurité de l'infrastructure
+- Conteneurs non-root, système de fichiers en lecture seule, toutes les capabilities supprimées, élévation de privilèges interdite
+- NetworkPolicy : MongoDB n'accepte que le trafic de l'application
+- Aucun secret dans Git : le secret Kubernetes est généré par Ansible avec une clé aléatoire (`k8s/secret.exemple.yaml` sert de modèle)
+- Port 3000 exposé uniquement sur `127.0.0.1` (Terraform `listen_address`), car Docker contourne UFW pour les ports publiés
+- Pare-feu UFW en politique « deny » par défaut sur l'hôte (Ansible)
+- Terraform : state et kubeconfig exclus du dépôt
 ---
 
+### Limites connues
+- Cluster local à un seul nœud : pas de haute disponibilité
+- MongoDB sans authentification (isolé uniquement par la NetworkPolicy)
+- Pas de déploiement continu : le pipeline se limite aux contrôles de sécurité
+- Secrets gérés par Ansible, sans coffre externe (Vault, Sealed Secrets)
+
+---
 # 👥 Équipe de développement
 
 - [NACHID Ayman](https://github.com/Nachiid)
 - KECHICHE Younes
-- MEZOUARA Yasser
+- MEZOUARA Yassir
 - MADANE Youssef
 
+> **Mise en place DevSecOps** (pipeline CI, durcissement Docker, Terraform, Ansible, Kubernetes) : [MEZOUARA Yassir](https://github.com/supeernova10)
 ---
 
 # 📜 Licence
